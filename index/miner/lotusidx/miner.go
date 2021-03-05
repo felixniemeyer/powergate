@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ipfs/go-datastore"
+	kt "github.com/ipfs/go-datastore/keytransform"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -15,12 +16,11 @@ import (
 	"github.com/textileio/powergate/v2/iplocation"
 	"github.com/textileio/powergate/v2/lotus"
 	"github.com/textileio/powergate/v2/signaler"
-	txndstr "github.com/textileio/powergate/v2/txndstransform"
 )
 
 var (
 	minersRefreshInterval = time.Hour * 6
-	maxParallelism        = 1
+	maxParallelism        = 20
 
 	log = logging.Logger("index-miner")
 )
@@ -54,7 +54,7 @@ type Index struct {
 func New(ds datastore.TxnDatastore, clientBuilder lotus.ClientBuilder, h P2PHost, lr iplocation.LocationResolver, runOnStart, disable bool) (*Index, error) {
 	initMetrics()
 
-	store, err := store.New(txndstr.Wrap(ds, "store"))
+	store, err := store.New(kt.Wrap(ds, kt.PrefixTransform{Prefix: datastore.NewKey("store")}))
 	if err != nil {
 		return nil, fmt.Errorf("creating store: %s", err)
 	}
@@ -94,7 +94,7 @@ func (mi *Index) Get() miner.IndexSnapshot {
 		},
 		OnChain: miner.ChainIndex{
 			LastUpdated: mi.index.OnChain.LastUpdated,
-			Miners:      make(map[string]miner.OnChainData, len(mi.index.OnChain.Miners)),
+			Miners:      make(map[string]miner.OnChainMinerData, len(mi.index.OnChain.Miners)),
 		},
 	}
 	for addr, v := range mi.index.Meta.Info {

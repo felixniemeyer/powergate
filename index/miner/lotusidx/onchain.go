@@ -27,10 +27,10 @@ func (mi *Index) updateOnChainIndex(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("calling state-list-miners: %s", err)
 	}
-	log.Infof("listing all on-chain miners took %d seconds", time.Since(start).Seconds())
+	log.Infof("listing all on-chain miners took %.2f seconds", time.Since(start).Seconds())
 
 	newIndex := miner.ChainIndex{
-		Miners: map[string]miner.OnChainData{},
+		Miners: map[string]miner.OnChainMinerData{},
 	}
 	if err := updateForAddrs(ctx, client, &newIndex, addrs); err != nil {
 		return fmt.Errorf("updating for addresses: %s", err)
@@ -45,7 +45,7 @@ func (mi *Index) updateOnChainIndex(ctx context.Context) error {
 	mi.index.OnChain = newIndex
 	mi.lock.Unlock()
 
-	if err := mi.store.SaveOnChain(newIndex); err != nil {
+	if err := mi.store.SaveOnChain(ctx, newIndex); err != nil {
 		return fmt.Errorf("saving on-chain index to store: %s", err)
 	}
 	mi.signaler.Signal()
@@ -73,7 +73,7 @@ func updateForAddrs(ctx context.Context, api *apistruct.FullNodeStruct, chainInd
 			chainIndex.Miners[addr.String()] = ocd
 			l.Unlock()
 		}(a)
-		if i%5000 == 0 {
+		if i%10000 == 0 {
 			log.Infof("on-chain idx progress %d/%d", i, len(addrs))
 		}
 	}
@@ -88,27 +88,27 @@ func updateForAddrs(ctx context.Context, api *apistruct.FullNodeStruct, chainInd
 	return nil
 }
 
-func getOnChainData(ctx context.Context, c *apistruct.FullNodeStruct, addr address.Address) (miner.OnChainData, error) {
+func getOnChainData(ctx context.Context, c *apistruct.FullNodeStruct, addr address.Address) (miner.OnChainMinerData, error) {
 	// Power of miner.
 	mp, err := c.StateMinerPower(ctx, addr, types.EmptyTSK)
 	if err != nil {
-		return miner.OnChainData{}, fmt.Errorf("getting miner power: %s", err)
+		return miner.OnChainMinerData{}, fmt.Errorf("getting miner power: %s", err)
 	}
 
 	// Sector size
 	info, err := c.StateMinerInfo(ctx, addr, types.EmptyTSK)
 	if err != nil {
-		return miner.OnChainData{}, fmt.Errorf("getting sector size: %s", err)
+		return miner.OnChainMinerData{}, fmt.Errorf("getting sector size: %s", err)
 	}
 
 	// Sectors
 	sectors, err := c.StateMinerSectorCount(ctx, addr, types.EmptyTSK)
 	if err != nil {
-		return miner.OnChainData{}, fmt.Errorf("getting sectors count: %s", err)
+		return miner.OnChainMinerData{}, fmt.Errorf("getting sectors count: %s", err)
 	}
 
 	p := mp.MinerPower.RawBytePower.Uint64()
-	return miner.OnChainData{
+	return miner.OnChainMinerData{
 		Power:         p,
 		RelativePower: float64(p) / float64(mp.TotalPower.RawBytePower.Uint64()),
 		SectorSize:    uint64(info.SectorSize),
