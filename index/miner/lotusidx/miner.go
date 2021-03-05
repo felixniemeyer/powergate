@@ -51,7 +51,7 @@ type Index struct {
 
 // New returns a new MinerIndex. It loads from ds any previous state and starts
 // immediately making the index up to date.
-func New(ds datastore.TxnDatastore, clientBuilder lotus.ClientBuilder, h P2PHost, lr iplocation.LocationResolver, runOnStart, disable bool) (*Index, error) {
+func New(ds datastore.Datastore, clientBuilder lotus.ClientBuilder, h P2PHost, lr iplocation.LocationResolver, runOnStart, disable bool) (*Index, error) {
 	initMetrics()
 
 	store, err := store.New(kt.Wrap(ds, kt.PrefixTransform{Prefix: datastore.NewKey("store")}))
@@ -62,6 +62,10 @@ func New(ds datastore.TxnDatastore, clientBuilder lotus.ClientBuilder, h P2PHost
 	savedIndex, err := store.GetIndex()
 	if err != nil {
 		return nil, fmt.Errorf("loading saved index: %s", err)
+	}
+	log.Warnf("Lets see: %T", ds)
+	if err := store.SaveOnChain(context.Background(), savedIndex.OnChain); err != nil {
+		log.Error(err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -144,9 +148,6 @@ func (mi *Index) startMinerWorker(runOnStart bool) {
 			startRun <- struct{}{}
 		}
 
-		if err := mi.updateOnChainIndex(mi.ctx); err != nil {
-			log.Errorf("initial updating miner index: %s", err)
-		}
 		for {
 			select {
 			case <-mi.ctx.Done():

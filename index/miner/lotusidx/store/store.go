@@ -56,7 +56,7 @@ func (s *Store) SaveOnChain(ctx context.Context, index miner.ChainIndex) error {
 	}
 	for addr, onchain := range index.Miners {
 		i++
-		if i%100 == 0 {
+		if i%1000 == 0 {
 			fmt.Printf("%d/%d lasted %dms\n", i, len(index.Miners), time.Since(start).Milliseconds())
 			if err := b.Commit(); err != nil {
 				return fmt.Errorf("commiting batch: %s", err)
